@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网格参数化与变形可视化系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --dark-color: #2c3e50;
+            --light-color: #ecf0f1;
+            --panel-bg: rgba(255, 255, 255, 0.92);
+            --header-bg: rgba(255, 255, 255, 0.95);
+            --grid-bg: rgba(26, 26, 46, 0.95);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+            color: #333;
+            height: 100vh;
+        }
+        
+        #app-container {
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            grid-template-rows: 70px 1fr;
+            height: 100vh;
+            gap: 12px;
+            padding: 12px;
+        }
+        
+        header {
+            grid-column: 1 / 4;
+            background: var(--header-bg);
+            border-radius: 12px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+            z-index: 100;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 26px;
+            font-weight: bold;
+            color: var(--dark-color);
+        }
+        
+        .logo i {
+            margin-right: 12px;
+            color: var(--primary-color);
+        }
+        
+        .sidebar {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.12);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        
+        .panel {
+            margin-bottom: 28px;
+        }
+        
+        .panel-title {
+            font-size: 19px;
+            font-weight: 600;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--primary-color);
+            display: flex;
+            align-items: center;
+        }
+        
+        .panel-title i {
+            margin-right: 12px;
+            color: var(--primary-color);
+            width: 24px;
+            text-align: center;
+        }
+        
+        .control-group {
+            margin-bottom: 18px;
+        }
+        
+        .control-label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+        
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 15px;
+            margin-bottom: 12px;
+            transition: all 0.3s;
+        }
+        
+        input:focus, select:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        }
+        
+        button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 46px;
+        }
+        
+        button i {
+            margin-right: 10px;
+        }
+        
+        button:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button.btn-success {
+            background: var(--secondary-color);
+        }
+        
+        button.btn-success:hover {
+            background: #27ae60;
+        }
+        
+        button.btn-warning {
+            background: var(--warning-color);
+        }
+        
+        button.btn-warning:hover {
+            background: #e67e22;
+        }
+        
+        button.btn-danger {
+            background: var(--danger-color);
+        }
+        
+        button.btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .view-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 12px;
+            height: 100%;
+        }
+        
+        .view-panel {
+            background: var(--grid-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .view-header {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: var(--header-bg);
+            padding: 10px 18px;
+            border-radius: 24px;
+            font-weight: 500;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        #view3d, #view2d {
+            width: 100%;
+            height: 100%;
+        }
+        
+        #status-bar {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--header-bg);
+            padding: 10px 24px;
+            border-radius: 24px;
+            font-size: 15px;
+            z-index: 100;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .method-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 18px;
+        }
+        
+        .method-btn {
+            padding: 14px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 90px;
+        }
+        
+        .method-btn:hover {
+            border-color: var(--primary-color);
+            background: #e3f2fd;
+        }
+        
+        .method-btn.active {
+            border-color: var(--primary-color);
+            background: #bbdefb;
+            font-weight: bold;
+        }
+        
+        .method-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: var(--primary-color);
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 10px;
+            padding: 18px;
+            margin-bottom: 18px;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .metric-title {
+            font-size: 15px;
+            color: #7f8c8d;
+            margin-bottom: 8px;
+        }
+        
+        .metric-value {
+            font-size: 26px;
+            font-weight: bold;
+            color: var(--dark-color);
+        }
+        
+        .upload-area {
+            border: 2px dashed #3498db;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 24px;
+            background: #e3f2fd;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-area:hover, .upload-area.dragover {
+            background: #bbdefb;
+            border-color: #2980b9;
+        }
+        
+        .upload-area i {
+            font-size: 52px;
+            color: #3498db;
+            margin-bottom: 18px;
+        }
+        
+        #selectionInfo {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            font-size: 15px;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            border: 1px solid #eee;
+        }
+        
+        @media (max-width: 1200px) {
+            #app-container {
+                grid-template-columns: 280px 1fr 280px;
+            }
+        }
+        
+        @media (max-width: 992px) {
+            #app-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr auto;
+            }
+            
+            .sidebar {
+                grid-row: 3;
+                height: auto;
+                max-height: 420px;
+                overflow-y: auto;
+            }
+            
+            .view-container {
+                grid-row: 2;
+                grid-template-rows: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            header {
+                flex-direction: column;
+                padding: 12px;
+                text-align: center;
+            }
+            
+            .logo {
+                margin-bottom: 10px;
+                justify-content: center;
+            }
+            
+            #global-status {
+                margin: 10px 0;
+            }
+            
+            .controls {
+                width: 100%;
+                margin-top: 10px;
+            }
+            
+            .panel {
+                padding: 15px;
+            }
+            
+            .method-buttons {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        #view3d, #view2d {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        #view3d canvas, #view2d canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress {
+            height: 100%;
+            background: var(--primary-color);
+            width: 0%;
+            transition: width 0.4s;
+        }
+        
+        .highlight {
+            animation: highlight 1.5s ease;
+        }
+        
+        @keyframes highlight {
+            0% { background-color: rgba(255, 255, 0, 0.5); }
+            100% { background-color: transparent; }
+        }
+        
+        .info-badge {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 14px;
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            z-index: 20;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            z-index: 100;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #fff;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transform: translateX(120%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification.success {
+            border-left: 4px solid var(--secondary-color);
+        }
+        
+        .notification.error {
+            border-left: 4px solid var(--danger-color);
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-project-diagram"></i>
+                网格参数化与变形系统
+            </div>
+            <div id="global-status">系统已就绪，可以上传模型</div>
+            <div class="controls">
+                <button id="screenshotBtn"><i class="fas fa-camera"></i> 保存截图</button>
+            </div>
+        </header>
+        
+        <div class="sidebar">
+            <div class="panel">
+                <div class="panel-title">
+                    <i class="fas fa-upload"></i> 模型上传
+                </div>
+                <div class="upload-area" id="uploadArea">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h3>拖放OBJ文件或点击上传</h3>
+                    <p>支持3D网格文件格式 (.obj)</p>
+                    <input type="file" id="fileInput" accept=".obj" style="display: none;">
+                </div>
+                <button id="uploadBtn" class="btn-success">
+                    <i class="fas fa-upload"></i> 加载模型
+                </button>
+                <div class="progress-bar">
+                    <div class="progress" id="uploadProgress"></div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-title">
+                    <i class="fas fa-sliders-h"></i> 参数化设置
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">参数化方法</label>
+                    <div class="method-buttons" id="paramMethods">
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">迭代次数: <span id="iterationsValue">5</span></label>
+                    <input type="range" id="iterationsInput" min="1" max="20" value="5">
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">Lambda: <span id="lambdaValue">0.0</span></label>
+                    <input type="range" id="lambdaRange" min="0" max="1" step="0.01" value="0">
+                </div>
+                
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="flipAvoidCheck" checked> 避免翻转
+                    </label>
+                </div>
+                <button id="paramBtn" class="btn-success" disabled>
+                    <i class="fas fa-bolt"></i> 执行参数化
+                </button>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-title">
+                    <i class="fas fa-ruler-combined"></i> 参数化指标
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-title">扭曲度</div>
+                    <div class="metric-value" id="distortionValue">0.000</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-title">面积扭曲</div>
+                    <div class="metric-value" id="areaDistValue">0.000</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-title">角度扭曲</div>
+                    <div class="metric-value" id="angleDistValue">0.000</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="view-container">
+            <div class="view-panel">
+                <div class="view-header">3D 网格视图</div>
+                <div id="view3d">
+                    <div class="info-badge">点击网格顶点选择控制点</div>
+                    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+                        <div class="spinner"></div>
+                        <div id="loadingMessage">正在处理网格，请稍候...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="view-panel">
+                <div class="view-header">2D 参数化视图</div>
+                <div id="view2d">
+                    <canvas id="paramCanvas" width="1024" height="1024"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="sidebar">
+            <div class="panel">
+                <div class="panel-title">
+                    <i class="fas fa-magic"></i> 变形控制
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">变形方法</label>
+                    <div class="method-buttons" id="deformMethods">
+                    </div>
+                </div>
+                
+                <button id="resetDeformBtn" class="btn-warning">
+                    <i class="fas fa-undo"></i> 重置变形
+                </button>
+                
+                <button id="deformBtn" class="btn-success" disabled>
+                    <i class="fas fa-hand-paper"></i> 执行变形
+                </button>
+                
+                <div class="control-group" style="margin-top: 20px;">
+                    <label class="control-label">当前选择</label>
+                    <div id="selectionInfo">未选择顶点</div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-title">
+                    <i class="fas fa-chart-bar"></i> 变形指标
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-title">变形扭曲度</div>
+                    <div class="metric-value" id="deformDistValue">0.000</div>
+                </div>
+                
+                <div class="metric-card">
+                    <div class="metric-title">最大位移</div>
+                    <div class="metric-value" id="maxDisplaceValue">0.000</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="status-bar">就绪 - 请上传模型开始处理</div>
+    </div>
+    
+    <div id="notification" class="notification"></div>
+
+    <script>
+        let sessionId = null;
+        let scene3d, camera3d, renderer3d, controls;
+        let mesh3d = null;
+        let vertices = [], originalVertices = [], faces = [], paramCoords = [], boundary = [];
+        let selectedVertexIndex = -1;
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
+        let currentParamMethod = 0;
+        let currentDeformMethod = 0;
+        let isDragging = false;
+        let points = null;
+        let uploadTimeout = null;
+        let socket = null;
+        let highlightSphere = null;
+        
+        const PARAM_METHODS = {
+            0: "ARAP",
+            1: "ASAP",
+            2: "Hybrid",
+            3: "LSCM",
+            4: "MVC"
+        };
+        
+        const DEFORM_METHODS = {
+            0: "ARAP变形",
+            1: "拉普拉斯变形"
+        };
+        
+        const paramIcons = {
+            0: 'fas fa-project-diagram',
+            1: 'fas fa-sync-alt',
+            2: 'fas fa-blender-phone',
+            3: 'fas fa-ruler-combined',
+            4: 'fas fa-vector-square'
+        };
+        
+        const deformIcons = {
+            0: 'fas fa-hand-rock',
+            1: 'fas fa-wave-square'
+        };
+        
+        function onWindowResize() {
+            const container = document.getElementById('view3d');
+            camera3d.aspect = container.clientWidth / container.clientHeight;
+            camera3d.updateProjectionMatrix();
+            renderer3d.setSize(container.clientWidth, container.clientHeight);
+
+            const container2d = document.getElementById('view2d');
+            const canvas = document.getElementById('paramCanvas');
+            canvas.width = container2d.clientWidth;
+            canvas.height = container2d.clientHeight;
+
+            if (paramCoords.length > 0) {
+                create2DParameterization();
+            }
+        }
+
+        function init3DView() {
+            const container = document.getElementById('view3d');
+            
+            scene3d = new THREE.Scene();
+            scene3d.background = new THREE.Color(0x1a1a2e);
+            
+            camera3d = new THREE.PerspectiveCamera(
+                60, 
+                container.clientWidth / container.offsetHeight, 
+                0.1, 
+                1000
+            );
+            camera3d.position.set(0, 0, 5);
+            
+            renderer3d = new THREE.WebGLRenderer({ 
+                antialias: true,
+                preserveDrawingBuffer: true
+            });
+            renderer3d.setPixelRatio(window.devicePixelRatio);
+            renderer3d.setSize(container.offsetWidth, container.offsetHeight);
+            container.appendChild(renderer3d.domElement);
+            
+            controls = new THREE.OrbitControls(camera3d, renderer3d.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+            scene3d.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 1, 1);
+            scene3d.add(directionalLight);
+            
+            const backLight = new THREE.DirectionalLight(0xffffff, 0.4);
+            backLight.position.set(-1, -1, -1);
+            scene3d.add(backLight);
+            
+            const axesHelper = new THREE.AxesHelper(2);
+            scene3d.add(axesHelper);
+            
+            const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+            scene3d.add(gridHelper);
+            
+            renderer3d.domElement.addEventListener('mousedown', onMouseDown, false);
+            renderer3d.domElement.addEventListener('mousemove', onMouseMove, false);
+            renderer3d.domElement.addEventListener('mouseup', onMouseUp, false);
+            
+            createPlaceholderMesh();
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        function createPlaceholderMesh() {
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x3498db,
+                wireframe: false,
+                transparent: true,
+                opacity: 0.5
+            });
+            mesh3d = new THREE.Mesh(geometry, material);
+            scene3d.add(mesh3d);
+        }
+        
+        function init2DView() {
+            const canvas = document.getElementById('paramCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#e6e6e6';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('上传网格模型查看参数化结果', canvas.width/2, canvas.height/2);
+            
+            canvas.addEventListener('mousedown', onCanvasMouseDown);
+        }
+        
+        function loadParamMethods() {
+            const container = document.getElementById('paramMethods');
+            container.innerHTML = '';
+    
+            for (const [id, name] of Object.entries(PARAM_METHODS)) {
+                const btn = document.createElement('div');
+                btn.className = 'method-btn';
+                btn.dataset.method = id;
+                
+                btn.innerHTML = `
+                    <div class="method-icon"><i class="${paramIcons[id]}"></i></div>
+                    <div>${name}</div>
+                `;
+        
+                if (parseInt(id) === currentParamMethod) {
+                    btn.classList.add('active');
+                }
+        
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#paramMethods .method-btn').forEach(b => {
+                        b.classList.remove('active');
+                    });
+                    btn.classList.add('active');
+                    currentParamMethod = parseInt(id);
+                    updateGlobalStatus(`参数化方法已切换: ${name}`);
+                });
+                container.appendChild(btn);
+            }
+        }
+
+        function loadDeformMethods() {
+            const container = document.getElementById('deformMethods');
+            container.innerHTML = '';
+    
+            for (const [id, name] of Object.entries(DEFORM_METHODS)) {
+                const btn = document.createElement('div');
+                btn.className = 'method-btn';
+                btn.dataset.method = id;
+                
+                btn.innerHTML = `
+                    <div class="method-icon"><i class="${deformIcons[id]}"></i></div>
+                    <div>${name}</div>
+                `;
+        
+                if (parseInt(id) === currentDeformMethod) {
+                    btn.classList.add('active');
+                }
+        
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#deformMethods .method-btn').forEach(b => {
+                        b.classList.remove('active');
+                    });
+                    btn.classList.add('active');
+                    currentDeformMethod = parseInt(id);
+                    updateGlobalStatus(`变形方法已切换: ${name}`);
+                });
+                container.appendChild(btn);
+            }
+        }
+        
+        function loadMesh(data) {
+            sessionId = data.session_id;
+            originalVertices = data.vertices;
+            vertices = [...data.vertices];
+            faces = data.faces;
+            
+            create3DMesh();
+            
+            document.getElementById('selectionInfo').textContent = "模型已加载";
+            
+            document.getElementById('paramBtn').disabled = false;
+            updateGlobalStatus("模型已加载，请设置参数化选项");
+            
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+        
+        function loadParameterization(data) {
+            sessionId = data.session_id || sessionId;
+            paramCoords = data.param_coords;
+
+            boundary = data.boundary;
+            window.paramCoords = paramCoords;
+            window.normalizedUVs = [];
+            if (paramCoords.length > 0) {
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                paramCoords.forEach(uv => {
+                    if (uv[0] < minX) minX = uv[0];
+                    if (uv[0] > maxX) maxX = uv[0];
+                    if (uv[1] < minY) minY = uv[1];
+                    if (uv[1] > maxY) maxY = uv[1];
+                });
+        
+                const rangeX = maxX - minX || 1;
+                const rangeY = maxY - minY || 1;
+        
+                paramCoords.forEach(uv => {
+                    const u = (uv[0] - minX) / rangeX;
+                    const v = (uv[1] - minY) / rangeY;
+                    window.normalizedUVs.push([u, v]);
+                });
+            }
+            create2DParameterization();
+            
+            if (data.metrics) {
+                document.getElementById('distortionValue').textContent = 
+                    data.metrics.distortion?.toFixed(4) || '0.000';
+                document.getElementById('areaDistValue').textContent = 
+                    data.metrics.area_distortion?.toFixed(4) || '0.000';
+                document.getElementById('angleDistValue').textContent = 
+                    data.metrics.angle_distortion?.toFixed(4) || '0.000';
+                
+                highlightMetrics();
+            }
+            
+            document.getElementById('selectionInfo').textContent = 
+                `参数化方法: ${data.param_method || 'ARAP'}`;
+            
+            document.getElementById('deformBtn').disabled = false;
+            updateGlobalStatus("参数化完成，可选择顶点进行变形");
+            
+            document.getElementById('loadingOverlay').style.display = 'none';
+            if (data.texture_path) {
+                window.texturePath = data.texture_path;
+                applyTextureToMesh(data.texture_path);
+            }
+        }
+
+        function applyTextureToMesh(texturePath) {
+            if (!mesh3d) return;
+    
+            const uvCoords = window.normalizedUVs || paramCoords;
+    
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.load(`/textures/${texturePath}`, (texture) => {
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+        
+                mesh3d.material.map = texture;
+                mesh3d.material.needsUpdate = true;
+        
+                if (uvCoords && uvCoords.length > 0) {
+                    const uvArray = [];
+                    uvCoords.forEach(uv => {
+                        uvArray.push(uv[0], uv[1]);
+                    });
+            
+                    mesh3d.geometry.setAttribute(
+                        'uv',
+                        new THREE.Float32BufferAttribute(uvArray, 2)
+                    );
+                    mesh3d.geometry.attributes.uv.needsUpdate = true;
+                }
+            });
+        }
+
+        function highlightMetrics() {
+            document.getElementById('distortionValue').parentElement.classList.add('highlight');
+            document.getElementById('areaDistValue').parentElement.classList.add('highlight');
+            document.getElementById('angleDistValue').parentElement.classList.add('highlight');
+            
+            setTimeout(() => {
+                document.getElementById('distortionValue').parentElement.classList.remove('highlight');
+                document.getElementById('areaDistValue').parentElement.classList.remove('highlight');
+                document.getElementById('angleDistValue').parentElement.classList.remove('highlight');
+            }, 1500);
+        }
+        
+        function create3DMesh() {
+            if (mesh3d) {
+                scene3d.remove(mesh3d);
+            }
+            
+            const geometry = new THREE.BufferGeometry();
+            
+            const verticesFlat = [];
+            vertices.forEach(v => {
+                verticesFlat.push(v[0], v[1], v[2]);
+            });
+            
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(verticesFlat, 3));
+            
+            const indices = [];
+            faces.forEach(f => {
+                indices.push(f[0], f[1], f[2]);
+            });
+            geometry.setIndex(indices);
+            
+            geometry.computeVertexNormals();
+            
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x3498db,
+                wireframe: false,
+                side: THREE.DoubleSide,
+                flatShading: false,
+                shininess: 50,
+                transparent: true,
+                opacity: 0.95
+            });
+            
+            mesh3d = new THREE.Mesh(geometry, material);
+            scene3d.add(mesh3d);
+            
+            if (points) scene3d.remove(points);
+            const pointsGeometry = new THREE.BufferGeometry();
+            pointsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(verticesFlat, 3));
+            const pointsMaterial = new THREE.PointsMaterial({
+                color: 0xff0000,
+                size: 0.1,
+                visible: false
+            });
+            points = new THREE.Points(pointsGeometry, pointsMaterial);
+            scene3d.add(points);
+            
+            fitCameraToObject(camera3d, mesh3d, controls);
+        }
+        
+        function updateMeshGeometry(vertices) {
+            const verticesFlat = [];
+            vertices.forEach(v => {
+                verticesFlat.push(v[0], v[1], v[2]);
+            });
+            
+            if (mesh3d) {
+                mesh3d.geometry.setAttribute(
+                    'position', 
+                    new THREE.Float32BufferAttribute(verticesFlat, 3)
+                );
+                mesh3d.geometry.computeVertexNormals();
+                mesh3d.geometry.attributes.position.needsUpdate = true;
+            }
+            
+            if (points) {
+                points.geometry.setAttribute(
+                    'position', 
+                    new THREE.Float32BufferAttribute(verticesFlat, 3)
+                );
+                points.geometry.attributes.position.needsUpdate = true;
+            }
+        }
+        
+        function create2DParameterization() {
+            const canvas = document.getElementById('paramCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+    
+            ctx.clearRect(0, 0, width, height);
+    
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, width, height);
+    
+            if (paramCoords.length === 0) {
+                ctx.fillStyle = '#e6e6e6';
+                ctx.font = '24px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('上传网格模型查看参数化结果', width/2, height/2);
+                return;
+            }
+    
+            const uvCoords = window.normalizedUVs || paramCoords;
+    
+            let minU = Infinity, minV = Infinity, maxU = -Infinity, maxV = -Infinity;
+            uvCoords.forEach(uv => {
+                minU = Math.min(minU, uv[0]);
+                maxU = Math.max(maxU, uv[0]);
+                minV = Math.min(minV, uv[1]);
+                maxV = Math.max(maxV, uv[1]);
+            });
+    
+            const rangeU = maxU - minU || 1;
+            const rangeV = maxV - minV || 1;
+    
+            const margin = 0.1;
+            const scale = Math.min(
+                width * (1 - 2 * margin) / rangeU,
+                height * (1 - 2 * margin) / rangeV
+            );
+            
+            const offsetX = (width - rangeU * scale) / 2;
+            const offsetY = (height - rangeV * scale) / 2;
+    
+            function uvToCanvas(uv) {
+                const x = offsetX + (uv[0] - minU) * scale;
+                const y = offsetY + (maxV - uv[1]) * scale;
+                return {x, y};
+            }
+    
+            ctx.fillStyle = '#e74c3c';
+            boundary.forEach(idx => {
+                const uv = uvCoords[idx];
+                const {x, y} = uvToCanvas(uv);
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+    
+            ctx.strokeStyle = 'rgba(52, 152, 219, 0.8)';
+            ctx.lineWidth = 1.2;
+            faces.forEach(face => {
+                const [a, b, c] = face;
+                const uvs = [
+                    uvCoords[a],
+                    uvCoords[b],
+                    uvCoords[c]
+                ];
+        
+                ctx.beginPath();
+                uvs.forEach((uv, i) => {
+                    const {x, y} = uvToCanvas(uv);
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.closePath();
+                ctx.stroke();
+            });
+    
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.rect(offsetX, offsetY, rangeU * scale, rangeV * scale);
+            ctx.stroke();
+    
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('U: 0', offsetX, offsetY + rangeV * scale + 20);
+            ctx.fillText(`U: ${maxU.toFixed(2)}`, offsetX + rangeU * scale, offsetY + rangeV * scale + 20);
+            ctx.textAlign = 'left';
+            ctx.fillText(`V: ${minV.toFixed(2)}`, offsetX + rangeU * scale + 10, offsetY + rangeV * scale);
+            ctx.fillText(`V: ${maxV.toFixed(2)}`, offsetX + rangeU * scale + 10, offsetY);
+        }
+
+        function fitCameraToObject(camera, object, controls) {
+            const box = new THREE.Box3().setFromObject(object);
+            const size = box.getSize(new THREE.Vector3()).length();
+            const center = box.getCenter(new THREE.Vector3());
+            
+            camera.position.copy(center);
+            camera.position.x += size * 1.5;
+            camera.position.y += size * 0.5;
+            camera.position.z += size * 1.5;
+            
+            camera.near = size / 100;
+            camera.far = size * 100;
+            camera.updateProjectionMatrix();
+            
+            camera.lookAt(center);
+            controls.target.copy(center);
+            controls.update();
+        }
+        
+        function onMouseDown(event) {
+            const rect = renderer3d.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera3d);
+            
+            if (points) {
+                const intersections = raycaster.intersectObject(points);
+                if (intersections.length > 0) {
+                    selectedVertexIndex = intersections[0].index;
+                    
+                    if (highlightSphere) {
+                        scene3d.remove(highlightSphere);
+                        highlightSphere = null;
+                    }
+                    
+                    const sphereGeometry = new THREE.SphereGeometry(0.05, 16, 16);
+                    const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                    highlightSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+                    
+                    const positionArray = mesh3d.geometry.attributes.position.array;
+                    highlightSphere.position.set(
+                        positionArray[selectedVertexIndex * 3],
+                        positionArray[selectedVertexIndex * 3 + 1],
+                        positionArray[selectedVertexIndex * 3 + 2]
+                    );
+                    
+                    scene3d.add(highlightSphere);
+                    
+                    updateStatus(`已选择顶点 #${selectedVertexIndex}`);
+                    document.getElementById('selectionInfo').textContent = 
+                        `已选择顶点 #${selectedVertexIndex}`;
+                    
+                    isDragging = true;
+                }
+            }
+        }
+        
+        function onMouseMove(event) {
+            if (isDragging && selectedVertexIndex !== -1) {
+                const rect = renderer3d.domElement.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                
+                raycaster.setFromCamera(mouse, camera3d);
+                
+                const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+                const intersection = new THREE.Vector3();
+                raycaster.ray.intersectPlane(plane, intersection);
+                
+                const positionArray = mesh3d.geometry.attributes.position.array;
+                positionArray[selectedVertexIndex * 3] = intersection.x;
+                positionArray[selectedVertexIndex * 3 + 1] = intersection.y;
+                mesh3d.geometry.attributes.position.needsUpdate = true;
+                
+                const pointsArray = points.geometry.attributes.position.array;
+                pointsArray[selectedVertexIndex * 3] = intersection.x;
+                pointsArray[selectedVertexIndex * 3 + 1] = intersection.y;
+                points.geometry.attributes.position.needsUpdate = true;
+                
+                if (highlightSphere) {
+                    highlightSphere.position.set(intersection.x, intersection.y, 0);
+                }
+
+                updateHandlePosition(selectedVertexIndex, [intersection.x, intersection.y, 0]);
+            }
+        }
+        
+        function onMouseUp() {
+            isDragging = false;
+        }
+        
+        function onCanvasMouseDown(event) {
+            const canvas = document.getElementById('paramCanvas');
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            let minDist = Infinity;
+            let closestIndex = -1;
+            
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            paramCoords.forEach(uv => {
+                if (uv[0] < minX) minX = uv[0];
+                if (uv[0] > maxX) maxX = uv[0];
+                if (uv[1] < minY) minY = uv[1];
+                if (uv[1] > maxY) maxY = uv[1];
+            });
+            
+            const rangeX = maxX - minX || 1;
+            const rangeY = maxY - minY || 1;
+            
+            const margin = 0.1;
+            const scale = (1 - 2 * margin) * Math.min(canvas.width / rangeX, canvas.height / rangeY);
+            const offsetX = margin * canvas.width + (canvas.width - rangeX * scale) / 2;
+            const offsetY = margin * canvas.height + (canvas.height - rangeY * scale) / 2;
+            
+            for (let i = 0; i < paramCoords.length; i++) {
+                const uv = paramCoords[i];
+                const canvasX = offsetX + (uv[0] - minX) * scale;
+                const canvasY = offsetY + (maxY - uv[1]) * scale;
+                
+                const dist = Math.sqrt(Math.pow(canvasX - x, 2) + Math.pow(canvasY - y, 2));
+                if (dist < minDist && dist < 10) {
+                    minDist = dist;
+                    closestIndex = i;
+                }
+            }
+            
+            if (closestIndex !== -1) {
+                selectedVertexIndex = closestIndex;
+                updateStatus(`已选择顶点 #${selectedVertexIndex} (参数空间)`);
+                document.getElementById('selectionInfo').textContent = 
+                    `已选择顶点 #${selectedVertexIndex}`;
+                
+                if (points) {
+                    if (highlightSphere) {
+                        scene3d.remove(highlightSphere);
+                        highlightSphere = null;
+                    }
+                    
+                    const sphereGeometry = new THREE.SphereGeometry(0.05, 16, 16);
+                    const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                    highlightSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+                    
+                    const positionArray = mesh3d.geometry.attributes.position.array;
+                    highlightSphere.position.set(
+                        positionArray[selectedVertexIndex * 3],
+                        positionArray[selectedVertexIndex * 3 + 1],
+                        positionArray[selectedVertexIndex * 3 + 2]
+                    );
+                    
+                    scene3d.add(highlightSphere);
+                }
+            }
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('status-bar').textContent = message;
+        }
+        
+        function updateGlobalStatus(message) {
+            document.getElementById('global-status').textContent = message;
+        }
+        
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        function setLoadingMessage(message) {
+            document.getElementById('loadingMessage').textContent = message;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        }
+    
+        async function uploadMesh() {
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput.files.length) {
+                showNotification("请选择OBJ文件", "error");
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                setLoadingMessage("正在上传并加载模型...");
+                document.getElementById('uploadProgress').style.width = '30%';
+                
+                uploadTimeout = setTimeout(() => {
+                    setLoadingMessage("加载时间较长，请稍候...");
+                }, 3000);
+                
+                const response = await fetch('/upload_mesh', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                clearTimeout(uploadTimeout);
+                
+                if (!response.ok) {
+                    let errorMsg = '服务器错误';
+                    
+                    try {
+                        const errorData = await response.json();
+                        errorMsg = errorData.error || errorMsg;
+                    } catch (e) {
+                        errorMsg = await response.text();
+                    }
+                    
+                    throw new Error(errorMsg);
+                }
+                
+                const data = await response.json();
+                
+                document.getElementById('uploadProgress').style.width = '100%';
+                
+                if (!data.vertices || !data.faces) {
+                    throw new Error("服务器返回无效网格数据");
+                }
+                
+                loadMesh(data);
+                
+                showNotification("模型加载完成！");
+                
+                setTimeout(() => {
+                    document.getElementById('uploadProgress').style.width = '0%';
+                }, 3000);
+                
+            } catch (error) {
+                clearTimeout(uploadTimeout);
+                
+                let errorMessage = '上传失败';
+                if (error.message) {
+                    errorMessage += `: ${error.message}`;
+                }
+                
+                showNotification(errorMessage, "error");
+                
+                updateGlobalStatus(errorMessage);
+                
+                document.getElementById('uploadProgress').style.width = '0%';
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+        
+        async function performParameterization() {
+            if (!sessionId) {
+                showNotification("请先加载模型", "error");
+                return;
+            }
+            
+            const params = {
+                session_id: sessionId,
+                method: currentParamMethod,
+                iterations: document.getElementById('iterationsInput').value,
+                flip_avoid: document.getElementById('flipAvoidCheck').checked,
+                lamda: document.getElementById('lambdaRange').value
+            };
+            
+            try {
+                setLoadingMessage("正在执行参数化...");
+                
+                const response = await fetch('/parameterize', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(params)
+                });
+                
+                if (!response.ok) {
+                    let errorMsg = '参数化失败';
+                    try {
+                        const errorData = await response.json();
+                        errorMsg = errorData.error || errorMsg;
+                    } catch (e) {
+                        errorMsg = await response.text();
+                    }
+                    throw new Error(errorMsg);
+                }
+                
+                const data = await response.json();
+                
+                loadParameterization(data);
+                
+                showNotification("参数化完成！");
+                
+            } catch (error) {
+                showNotification(`参数化失败: ${error.message}`, "error");
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+
+        async function setHandle(vertexId, position) {
+            if (!sessionId) {
+                showNotification("请先上传网格", "error");
+                return;
+            }
+            
+            try {
+                const response = await fetch('/set_handle', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        vertex_id: vertexId,
+                        position: position
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+                
+                const result = await response.json();
+                return result.success;
+            } catch (error) {
+                showNotification(`设置控制点失败: ${error.message}`, "error");
+                return false;
+            }
+        }
+        
+        async function updateHandlePosition(vertexId, position) {
+            if (!sessionId) return;
+            
+            try {
+                const response = await fetch('/update_handle', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        vertex_id: vertexId,
+                        position: position
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+                
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+        
+        async function performDeformation() {
+            if (selectedVertexIndex === -1) {
+                showNotification("请先选择一个顶点", "error");
+                return;
+            }
+    
+            if (!sessionId) {
+                showNotification("请先上传网格", "error");
+                return;
+            }
+    
+            try {
+                setLoadingMessage("正在执行变形...");
+        
+                const positionArray = mesh3d.geometry.attributes.position.array;
+                const selectedVertex = [
+                    positionArray[selectedVertexIndex * 3],
+                    positionArray[selectedVertexIndex * 3 + 1],
+                    positionArray[selectedVertexIndex * 3 + 2]
+                ];
+        
+                await setHandle(selectedVertexIndex, selectedVertex);
+        
+                const response = await fetch('/deform', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        method: currentDeformMethod
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+                
+                const data = await response.json();
+                
+                if (data.vertices) {
+                    vertices = data.vertices;
+                    updateMeshGeometry(vertices);
+                }
+                
+                if (data.metrics) {
+                    document.getElementById('deformDistValue').textContent = 
+                        data.metrics.distortion?.toFixed(4) || '0.000';
+                    document.getElementById('maxDisplaceValue').textContent = 
+                        data.metrics.max_displacement?.toFixed(4) || '0.000';
+                }
+                
+                document.getElementById('selectionInfo').textContent = 
+                    `顶点 #${selectedVertexIndex} | 方法: ${data.deform_method || DEFORM_METHODS[currentDeformMethod]}`;
+                
+                showNotification("网格变形完成！");
+                
+            } catch (error) {
+                showNotification(`变形失败: ${error.message}`, "error");
+            } finally {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+        
+        function resetDeformation() {
+            if (!sessionId || !originalVertices.length) {
+                showNotification("没有可重置的变形", "error");
+                return;
+            }
+            
+            vertices = [...originalVertices];
+            updateMeshGeometry(vertices);
+            
+            document.getElementById('deformDistValue').textContent = '0.000';
+            document.getElementById('maxDisplaceValue').textContent = '0.000';
+            
+            showNotification("变形已重置");
+        }
+        
+        function takeScreenshot() {
+            if (!renderer3d) return;
+            
+            const dataURL = renderer3d.domElement.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `mesh-screenshot-${new Date().toISOString().slice(0, 19)}.png`;
+            link.href = dataURL;
+            link.click();
+            
+            showNotification("截图已保存");
+        }
+        
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const fileInput = document.getElementById('fileInput');
+            window.addEventListener('load', async () => {
+                init3DView();
+                init2DView();
+            
+                loadParamMethods();
+                loadDeformMethods();
+            
+                const uploadArea = document.getElementById('uploadArea');
+                const fileInput = document.getElementById('fileInput');
+                const lambdaRange = document.getElementById('lambdaRange');
+                const lambdaValue = document.getElementById('lambdaValue');
+                const iterationsInput = document.getElementById('iterationsInput');
+                const iterationsValue = document.getElementById('iterationsValue');
+            
+                if (!uploadArea || !fileInput || !lambdaRange || !lambdaValue || !iterationsInput || !iterationsValue) {
+                    showNotification("系统初始化失败，请刷新页面", "error");
+                    return;
+                }   
+            
+                uploadArea.addEventListener('click', (e) => {
+                    if (e.target !== fileInput) {
+                        fileInput.click();
+                    }
+                });
+
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files && e.target.files.length) {
+                        const file = e.target.files[0];
+                        if(file.name.toLowerCase().endsWith('.obj')){
+                            uploadArea.innerHTML =`
+                                <i class="fas fa-check-circle"></i>
+                                <h3>已选择文件</h3>
+                                <p>${file.name}</p>
+                            `;
+                            uploadArea.appendChild(fileInput);
+                        } else {
+                            showNotification("仅支持.obj格式文件", "error");
+                        }
+                    }
+                });
+            
+                uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.add('dragover');
+                });
+            
+                uploadArea.addEventListener('dragleave', () => {
+                    uploadArea.classList.remove('dragover');
+                });
+            
+                uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.remove('dragover');
+                
+                    if (e.dataTransfer.files && e.dataTransfer.files.length) {
+                        const file = e.dataTransfer.files[0];
+                        if (file.name.toLowerCase().endsWith('.obj')) {
+                            const dataTransfer = new DataTransfer();
+                            dataTransfer.items.add(file);
+                            fileInput.files = dataTransfer.files;
+                        
+                            uploadArea.innerHTML = `
+                                <i class="fas fa-check-circle"></i>
+                                <h3>已选择文件</h3>
+                                <p>${file.name}</p>
+                            `;
+                        } else {
+                            showNotification("仅支持.obj格式文件", "error");
+                        }
+                    }
+                });
+            
+                lambdaValue.textContent = lambdaRange.value;
+                iterationsValue.textContent = iterationsInput.value;
+            
+                lambdaRange.addEventListener('input', function() {
+                    lambdaValue.textContent = this.value;
+                });
+            
+                iterationsInput.addEventListener('input', function() {
+                    iterationsValue.textContent = this.value;
+                });
+            
+                document.getElementById('uploadBtn').addEventListener('click', uploadMesh);
+                document.getElementById('paramBtn').addEventListener('click', performParameterization);
+                document.getElementById('deformBtn').addEventListener('click', performDeformation);
+                document.getElementById('resetDeformBtn').addEventListener('click', resetDeformation);
+                document.getElementById('screenshotBtn').addEventListener('click', takeScreenshot);
+            
+                function animate() {
+                    requestAnimationFrame(animate);
+                    if(controls) controls.update();
+                    if (renderer3d) {
+                        renderer3d.render(scene3d, camera3d);
+                    }
+                }
+                animate();
+            
+                updateGlobalStatus("系统已就绪，请上传模型");
+            });
+            document.getElementById('uploadBtn').addEventListener('click', uploadMesh);
+        });
+    </script>
+</body>
+</html>

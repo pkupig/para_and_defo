@@ -1,0 +1,5 @@
+After the 0th iterations
+Total Energy: 0.0
+Total Area Distortion: 0.0
+Total Angle Distortion: 0.0
+
